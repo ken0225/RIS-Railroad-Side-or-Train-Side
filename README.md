@@ -4,7 +4,7 @@ _IMPORTANT: If you use any code in this repository for research that results in 
 
 This code package is related to the following scientific article:
 
-## K. Wang*, C. -T. Lam, B. K. Ng, "[How to Deploy RIS to Minimize Delay Spread in HST Communications: Railroad Side, or Train Side?](https://ieeexplore.ieee.org/document/10073344)," 2022 IEEE 22nd International Conference on Communication Technology (ICCT), Nanjing, China, 2022, pp. 793-797, doi: 10.1109/ICCT56141.2022.10073344.
+## K. Wang*, C. -T. Lam, and B. K. Ng, "[How to Deploy RIS to Minimize Delay Spread in HST Communications: Railroad Side, or Train Side?](https://ieeexplore.ieee.org/document/10073344)," 2022 IEEE 22nd International Conference on Communication Technology (ICCT), Nanjing, China, 2022, pp. 793-797, doi: 10.1109/ICCT56141.2022.10073344.
 
 ### How to use these files?
 
