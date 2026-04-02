@@ -8,4 +8,4 @@ This code package is related to the following scientific article:
 
 ### How to use these files?
 
-*   Running **`main_fig5_Bside.m`** and **`main_fig5_Vside.m`** generates Figure 5. Other figures can be produced in a similar manner.
+*   Running **`main_Vside.m`** generates Figures 2, 3, and 4.
