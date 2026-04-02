@@ -30,7 +30,6 @@ fc= 2.4e9; % Carrier frequency is 2.4 GHz
 disp(['Step 1: Parameter Initialization begin. In this setup, the IRS has ' num2str(M) ' x ' num2str(N) ' elements.']);
 
 dx = (c0/fc)/(2*sqrt(pi)); dy = dx; % dxdy=\lambda^2/(4\pi), this means the element gain is 1. 
-% RIS的总面积为dx*dy*32^2
 
 h_IRS = 3; % Height of the IRS
 
@@ -165,30 +164,6 @@ p5 = plot(1 : total_time, SE_approximation, 'b+', 'LineWidth', 1.25);
 xlabel('Vehicle Moving Time (s)','Interpreter','LaTex');
 ylabel('Spectral Efficiency (bit/s/Hz)','Interpreter','LaTex');
 title('SE with RIS and Transceiver HWIs for One Vehicle Pass','Interpreter','LaTex');
-
-% % Figure 2
-% 
-% B = 1e6; % Bandwidth is 1MHz
-% 
-% Pe = 1e-3; % The power consumption of each phase shifter (element), the typical value is 0.8 dBm
-% 
-% nu = 0.5; % The efficiency of the transmit power amplifier, the typical value is 0.5
-% 
-% PU =  3e-3; % The hardware static power in the receiver, the typical value is 5 dBm
-% 
-% PBS = 3e-3; % The total hardware static power cunsumption at BS, the typical value is 5 dBm
-% 
-% EE_IRS_no_HWI_Bside = (B .* SE_IRS_no_HWI) ./ (Pt/nu + PU + PBS + M*N*Pe);
-% 
-% figure(2); hold on; box on; grid on;
-% 
-% 
-% plot(1 : total_time, EE_IRS_no_HWI_Bside./1e6, 'g-', 'LineWidth', 1.25);
-% 
-% 
-% xlabel('Vehicle Moving Time (s)','Interpreter','LaTex');
-% ylabel('Energy Efficiency (Mbit/Joule)','Interpreter','LaTex');
-% title('EE  for One Vehicle Pass','Interpreter','LaTex');
 
 toc;
 
