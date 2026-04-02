@@ -195,7 +195,3 @@ toc;
 save 'SE_IRS_no_HWI_Bside' SE_IRS_no_HWI
 save 'Td_1RIS_Bside' Td_1RIS_Bside
 %save 'EE_IRS_no_HWI_Bside' EE_IRS_no_HWI_Bside
-
-
-
-
