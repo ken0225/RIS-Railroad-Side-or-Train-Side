@@ -1,197 +1,187 @@
-% Author: Ke(Ken)WANG from Macao Polytechnic Institute
+% Author: Ke(Ken) WANG, Macao Polytechnic Institute
 % Email: ke.wang@ipm.edu.mo, kewang0225@gmail.com
-% Update infomation: v0.1(2020/03/01), v0.7(2022/01/02)
+% Version: v0.1 (Jan 07, 2022)
 
-
-%% Clean All & Timer
+%% Clean & Timer
 close all;
 clear;
 tic;
 
-%% System Parameters Initialization
+%% System Parameters
 
-global c0 fc speed M N; % Global parameters
+global c0 fc speed M N total_time;
 
-% -------- Changeable parameters begin -------- 
-% You CAN change the parameters below to obtain different figures
-% In this simulation we IGNORE the phase drifts
+% Adjustable parameters
+M = 64; N = M; % IRS size (M x N)
 
+c0 = 299792458; % Speed of light
+fc = 2.4e9;     % Carrier frequency
 
-M = 64; N = M; % IRS has M x N elements
+disp(['Step 1: Initialization. IRS size = ' num2str(M) ' x ' num2str(N)]);
 
+dx = (c0/fc)/(2*sqrt(pi));
+dy = dx; % Element size (unit gain)
 
+h_IRS = 3;
+h_User = 1.5;
+h_BS = 20;
 
-%  -------- Changeable parameters end -------- 
+rotate_angle = pi/4;
+vehicle_length = 3;
 
-c0 = 299792458; % Light speed
+speed = 55;        % m/s
+total_time = 200;  % s
 
-fc= 2.4e9; % Carrier frequency is 2.4 GHz
+Pt = 0.1;          % Transmit power
+N0 = 10e-12;       % Noise power
 
-disp(['Step 1: Parameter Initialization begin. In this setup, the IRS has ' num2str(M) ' x ' num2str(N) ' elements.']);
+% User (receiver)
+x_User_start = -5000;
+y_User = 0 + h_User;
+z_User = 50;
 
-dx = (c0/fc)/(2*sqrt(pi)); dy = dx; % dxdy=\lambda^2/(4\pi), this means the element gain is 1. 
-% RIS的总面积为dx*dy*32^2
-
-h_IRS = 3; % Height of the IRS
-
-h_User = 1.5; % Height of the user
-
-h_BS = 20; % Height of the BS
-
-%rotate_angle = -pi/4;
-
-speed = 55; % Vehicle speed, note that 300km/h = 83.3333m/s
-
-total_time = 200; % Total time for one vehicle pass
-
-Pt = 0.1; % Transmit power is 1W = 30dBm
-
-N0 = 10e-12; % N0 = -80dBm
-
-% The coordinate of the vehicle, i.e., the receiver
-x_Vehicle_start = -5000;
-y_Vehicle = 0+h_User;
-z_Vehicle = 50; 
-
-% The coordinate of the Base Station, i.e., the transmitter
+% Base station (transmitter)
 x_BS = 0;
-y_BS = 0+h_BS;
-z_BS = 20; 
+y_BS = 0 + h_BS;
+z_BS = 20;
 
-%% Compute the trajectory for one vehicle pass
+%% Vehicle Trajectory
 
-disp(['Step 2: Compute the trajectory for one vehicle pass. The speed is ' num2str(speed) ' m/s.']);
+disp(['Step 2: Trajectory computation. Speed = ' num2str(speed) ' m/s']);
 
 p_BS = [x_BS, y_BS, z_BS];
+p_User_start = [x_User_start, y_User, z_User];
 
-p_vehicle_start = [x_Vehicle_start, y_Vehicle, z_Vehicle];
+p_User_trajectory = [];
 
-% Total trajectory = starting point + moving trajectory per second (we start from 1s rather than 0s)
-p_vehicle_trajectory = [];
-
-% The vehicle starts at p_vehicle_start, and travels at the speed during
-% total_time period
-for t = 1 : total_time
-    
-    temp_p_vehicle_trajectory =  p_vehicle_start+function_vehicle_moving_xdir(speed, t);
-    
-    p_vehicle_trajectory = [p_vehicle_trajectory; temp_p_vehicle_trajectory];
-    
+for t = 1:total_time
+    temp = p_User_start + function_vehicle_moving_xdir(speed, t);
+    p_User_trajectory = [p_User_trajectory; temp];
 end
 
-% 'A_0' is the gain for the direct path. It is a theoretical result.
-[A_0] = function_A0(p_BS, p_vehicle_trajectory);
+[A_0] = function_A0(p_BS, p_User_trajectory);
 
-%% Compute the gain when the IRS is non-isotropic, after phase optimization, and w/o HWI
-disp('Step 3: Compute the gain when the IRS is isotropic, after phase optimization, and w/o HWI.');
+%% IRS Gain (no HWI, phase optimized)
 
-% Locate the positions for M and N
-[centers_IRS] = function_centers_IRS(M, N, dx, dy);
+disp('Step 3: IRS gain (vehicle-side, ideal)');
 
-% 'h_IRS' is the height of IRS
-centers_IRS(:, 2) = centers_IRS(:, 2) + h_IRS;
+[centers_IRS] = function_centers_IRS_zy(M, N, dx, dy);
+centers_IRS(:,2) = centers_IRS(:,2) + h_IRS;
+centers_IRS = centers_IRS * function_rotate_IRS(rotate_angle);
 
-% 'A_mn_theoretical' is the gain for the IRS path, and it is a theoretical result.
-[A_mn, A_mn_matrix] = function_Amn_Bside(p_BS, centers_IRS, p_vehicle_trajectory, total_time);
+p_IRS_start = [x_User_start + vehicle_length, y_User, z_User];
 
-% Compute the delays
-[tau_0, tau_mn] = function_time_delay_Bside(centers_IRS, p_BS, p_vehicle_trajectory); 
+p_IRS_trajectory = zeros(M*N, 3, total_time);
 
-% Optimal phase shift
-phi_optimal = 2*pi*(fc*(tau_0-tau_mn) + ceil(-(fc * (tau_0-tau_mn))));
+for t = 1:total_time
+    temp = p_IRS_start + centers_IRS + function_vehicle_moving_xdir(speed, t);
+    p_IRS_trajectory(:,:,t) = temp;
+end
 
-% Final phase part
-exp_phi_optimal = exp(-1i*2*pi*fc.*tau_mn-1i.*phi_optimal);
+[A_mn, A_mn_matrix] = function_Amn_Vside(p_BS, p_User_trajectory, p_IRS_trajectory, total_time);
 
-% Total gain of theoretical result
-A_mn_plus_A_0 = A_mn.'+A_0;
+[tau_0, tau_mn] = function_time_delay_Vside(p_IRS_trajectory, p_BS, p_User_trajectory);
 
-Td_1RIS_Bside = max(tau_mn+(phi_optimal./(2*pi*fc))) - tau_0;
+k_imin = ceil(-(fc*(tau_0 - tau_mn)));
+phi_optimal = 2*pi*(fc*(tau_0 - tau_mn) + k_imin);
 
-%% Compute the  Gain/SE Approximation, i.e., Theorem 1
-disp('Step 5: Compute the gain/SE Approximation, i.e., Theorem 1');
+exp_phi_optimal = exp(-1i*2*pi*fc.*tau_mn - 1i.*phi_optimal);
 
+A_mn_plus_A_0 = A_mn + A_0;
+
+%% Delay Spread
+
+Td_1RIS_Vside = max(tau_mn + (phi_optimal./(2*pi*fc))) - tau_0;
+
+%% SE Approximation (Theorem 1)
+
+disp('Step 5: SE approximation');
+
+a_HWI = 0;
+kappa_t = 0;
+kappa_r = 0;
 A_star = [];
 Q = [];
-a_HWI = 0; kappa_t = 0; kappa_r = 0; 
 
-% Compute the A*
-for t = 1 : total_time
-    
-    temp_A_star=function_Astar(A_mn_matrix(t,:));
-    A_star = [A_star; temp_A_star];
-    
+for t = 1:total_time
+    A_star = [A_star; function_Astar(A_mn_matrix(t,:))];
 end
 
-% Compute the Q
-for t = 1 : total_time
-    
-    temp_Q = function_Q(A_0(t), A_star(t), A_mn_matrix(t,:), a_HWI);
-    Q(t) = temp_Q;
-    
+for t = 1:total_time
+    Q(t) = function_Q(A_0(t), A_star(t), A_mn_matrix(t,:), a_HWI);
 end
 
-Q = Pt*Q;
+Q = Pt * Q;
 
-% Compute the SNR approximation
-SNR_approximation = (Q ./ ((kappa_t+kappa_r)*Q + N0))'; 
+SNR_approximation = (Q ./ ((kappa_t + kappa_r)*Q + N0))';
+SE_approximation = log2(1 + SNR_approximation);
 
-% Compute the SE approximation
-SE_approximation = log2(1+SNR_approximation);
+%% Plot
 
-
-%% Plot the simulation results
 close all;
+disp('Step 7: Plot results');
 
-disp('Step 7: Plot the simulation results.');
+moving_distance = linspace(1, total_time, total_time) .* speed;
 
-inst_received_power_no_IRS = Pt * (abs(A_0)) .^ 2;
-inst_SNR_no_IRS = inst_received_power_no_IRS ./ (N0);
-SE_no_IRS = log2(1 + inst_SNR_no_IRS);
+inst_received_power_no_IRS = Pt * (abs(A_0)).^2;
+SE_no_IRS = log2(1 + inst_received_power_no_IRS./N0);
 
-inst_received_power_IRS_theoretical = Pt * (abs(A_mn_plus_A_0)) .^ 2;
-inst_SNR_IRS_theoretical = inst_received_power_IRS_theoretical ./ (N0);
-SE_IRS_no_HWI = log2(1 + inst_SNR_IRS_theoretical);
+inst_received_power_IRS = Pt * (abs(A_mn_plus_A_0)).^2;
+SE_IRS_no_HWI_Vside = log2(1 + inst_received_power_IRS./N0);
 
-
-
-% Figure 1
+% Figure 1: SE vs distance
 figure(1); hold on; box on; grid on;
 
-p1 = plot(1 : total_time, SE_no_IRS, 'r-', 'LineWidth', 1.25);
-p2 = plot(1 : total_time, SE_IRS_no_HWI, 'g-', 'LineWidth', 1.25);
-p5 = plot(1 : total_time, SE_approximation, 'b+', 'LineWidth', 1.25);
+a = load('SE_IRS_no_HWI_Bside'); SE_IRS_no_HWI_Bside = a.SE_IRS_no_HWI;
 
-xlabel('Vehicle Moving Time (s)','Interpreter','LaTex');
-ylabel('Spectral Efficiency (bit/s/Hz)','Interpreter','LaTex');
-title('SE with RIS and Transceiver HWIs for One Vehicle Pass','Interpreter','LaTex');
+plot(moving_distance, SE_no_IRS,           'k:',  'LineWidth', 3);
+plot(moving_distance, SE_IRS_no_HWI_Vside, 'b-',  'LineWidth', 3);
+plot(moving_distance, SE_IRS_no_HWI_Bside, 'g-.', 'LineWidth', 3);
+plot(moving_distance, SE_approximation,    'r+',  'LineWidth', 2.5, 'MarkerSize', 14);
 
-% % Figure 2
-% 
-% B = 1e6; % Bandwidth is 1MHz
-% 
-% Pe = 1e-3; % The power consumption of each phase shifter (element), the typical value is 0.8 dBm
-% 
-% nu = 0.5; % The efficiency of the transmit power amplifier, the typical value is 0.5
-% 
-% PU =  3e-3; % The hardware static power in the receiver, the typical value is 5 dBm
-% 
-% PBS = 3e-3; % The total hardware static power cunsumption at BS, the typical value is 5 dBm
-% 
-% EE_IRS_no_HWI_Bside = (B .* SE_IRS_no_HWI) ./ (Pt/nu + PU + PBS + M*N*Pe);
-% 
-% figure(2); hold on; box on; grid on;
-% 
-% 
-% plot(1 : total_time, EE_IRS_no_HWI_Bside./1e6, 'g-', 'LineWidth', 1.25);
-% 
-% 
-% xlabel('Vehicle Moving Time (s)','Interpreter','LaTex');
-% ylabel('Energy Efficiency (Mbit/Joule)','Interpreter','LaTex');
-% title('EE  for One Vehicle Pass','Interpreter','LaTex');
+xlabel('Vehicle Moving Distance (m)', 'Interpreter', 'LaTex');
+ylabel('Spectral Efficiency $\mathrm{SE}(t)$ (bit/s/Hz)', 'Interpreter', 'LaTex');
+legend({'w/o RIS', ...
+        'HST Side w/ $\phi_{m,n}^\mathrm{opt}(t)$', ...
+        'Railroad Side w/ $\phi_{m,n}^\mathrm{opt}(t)$', ...
+        'Analytical Result in Eq. (20)'}, ...
+        'Interpreter', 'LaTex');
+axis([4600, 5400, 5, 20]);
+
+% Figure 2: Delay spread vs distance
+figure(2); hold on; box on; grid on;
+
+b = load('Td_1RIS_Bside');                       Td_1RIS_Bside = b.Td_1RIS_Bside;
+c = load('Td_1RIS_Vside_k_imin_plus');           Td_1RIS_Vside_k_imin_plus = c.Td_1RIS_Vside;
+d = load('Td_1RIS_Vside_vehicle_length_minus3'); Td_1RIS_Vside_vehicle_length_minus3 = d.Td_1RIS_Vside;
+
+plot(moving_distance, Td_1RIS_Vside,                      'b-',  'LineWidth', 3);
+plot(moving_distance, Td_1RIS_Vside_vehicle_length_minus3, 'g-.', 'LineWidth', 3);
+plot(moving_distance, Td_1RIS_Vside_k_imin_plus,           'r--', 'LineWidth', 3);
+plot(moving_distance, Td_1RIS_Bside,                       'k:',  'LineWidth', 3);
+
+xlabel('Vehicle Moving Distance (m)', 'Interpreter', 'LaTex');
+ylabel('Delay Spread $T(t)$ (s)', 'Interpreter', 'LaTex');
+legend({'HST Side w/ $\phi_{m,n}^\mathrm{opt}(t), \Delta=3 \ \mathrm{m}$', ...
+        'HST Side w/ $\phi_{m,n}^\mathrm{opt}(t), \Delta=-3 \ \mathrm{m}$', ...
+        'HST Side w/ $\phi_{m,n}^*(t)$', ...
+        'Railroad Side w/ $\phi_{m,n}^\mathrm{opt}(t)$'}, ...
+        'Interpreter', 'LaTex', 'Location', 'NorthEast');
+axis([4e3, 6e3, -0.2e-7, 1.6e-7]);
+
+% Figure 3: CDF of SE
+figure(3); hold on; box on; grid on;
+
+plot(sort(SE_no_IRS(:),          'ascend'), linspace(0,1,total_time), 'b--', 'LineWidth', 3);
+plot(sort(SE_IRS_no_HWI_Bside(:),'ascend'), linspace(0,1,total_time), 'k',   'LineWidth', 3);
+plot(sort(SE_IRS_no_HWI_Vside(:),'ascend'), linspace(0,1,total_time), 'r-.', 'LineWidth', 3);
+plot(linspace(0,14,15), 0.05*ones(15,1), 'k--', 'LineWidth', 1);
+
+xlabel('Spectral Efficiency $\mathrm{SE}(t)$ (bit/s/Hz)', 'Interpreter', 'LaTex');
+ylabel('CDF', 'Interpreter', 'latex');
+legend({'w/o RIS', ...
+        'Railroad Side w/ $\phi_{m,n}^\mathrm{opt}(t)$', ...
+        'HST Side w/ $\phi_{m,n}^\mathrm{opt}(t)$'}, ...
+        'Interpreter', 'latex', 'Location', 'SouthEast');
 
 toc;
-
-save 'SE_IRS_no_HWI_Bside' SE_IRS_no_HWI
-save 'Td_1RIS_Bside' Td_1RIS_Bside
-%save 'EE_IRS_no_HWI_Bside' EE_IRS_no_HWI_Bside
